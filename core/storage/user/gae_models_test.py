@@ -101,7 +101,6 @@ class UserSettingsModelTest(test_utils.GenericTestBase):
             last_logged_in=self.GENERIC_DATE,
             last_created_an_exploration=self.GENERIC_DATE,
             last_edited_an_exploration=self.GENERIC_DATE,
-            profile_picture_data_url=self.GENERIC_IMAGE_URL,
             default_dashboard='learner',
             creator_dashboard_display_pref='card',
             user_bio=self.GENERIC_USER_BIO,
@@ -152,8 +151,6 @@ class UserSettingsModelTest(test_utils.GenericTestBase):
                 'last_logged_in': base_models.EXPORT_POLICY.EXPORTED,
                 'display_alias': base_models.EXPORT_POLICY.EXPORTED,
                 'user_bio': base_models.EXPORT_POLICY.EXPORTED,
-                'profile_picture_data_url':
-                    base_models.EXPORT_POLICY.EXPORTED,
                 'subject_interests': base_models.EXPORT_POLICY.EXPORTED,
                 'preferred_language_codes':
                     base_models.EXPORT_POLICY.EXPORTED,
@@ -296,7 +293,6 @@ class UserSettingsModelTest(test_utils.GenericTestBase):
             'last_logged_in_msec': None,
             'last_edited_an_exploration_msec': None,
             'last_created_an_exploration_msec': None,
-            'profile_picture_data_url': None,
             'default_dashboard': 'learner',
             'creator_dashboard_display_pref': 'card',
             'user_bio': None,
@@ -328,7 +324,6 @@ class UserSettingsModelTest(test_utils.GenericTestBase):
             'last_logged_in_msec': self.GENERIC_EPOCH,
             'last_edited_an_exploration_msec': self.GENERIC_EPOCH,
             'last_created_an_exploration_msec': self.GENERIC_EPOCH,
-            'profile_picture_data_url': self.GENERIC_IMAGE_URL,
             'default_dashboard': 'learner',
             'creator_dashboard_display_pref': 'card',
             'user_bio': self.GENERIC_USER_BIO,
@@ -3242,6 +3237,7 @@ class PendingDeletionRequestModelTests(test_utils.GenericTestBase):
     def test_get_export_policy(self) -> None:
         self.assertEqual(
             user_models.PendingDeletionRequestModel.get_export_policy(), {
+                'username': base_models.EXPORT_POLICY.NOT_APPLICABLE,
                 'created_on': base_models.EXPORT_POLICY.NOT_APPLICABLE,
                 'deleted': base_models.EXPORT_POLICY.NOT_APPLICABLE,
                 'email': base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -3558,3 +3554,109 @@ class LearnerGroupsUserModelTests(test_utils.GenericTestBase):
             ]
         }
         self.assertEqual(user_data, expected_data)
+
+
+class PinnedOpportunityModelTest(test_utils.GenericTestBase):
+    """Tests for the PinnedOpportunityModel class."""
+
+    def setUp(self) -> None:
+        super().setUp()
+
+        self.user_id = 'user_id_1'
+        self.language_code = 'en'
+        self.topic_id = 'topic_id_1'
+        self.opportunity_id_1 = 'opportunity_id1'
+
+        user_models.PinnedOpportunityModel.create(
+            user_id=self.user_id,
+            language_code=self.language_code,
+            topic_id=self.topic_id,
+            opportunity_id=self.opportunity_id_1
+        )
+
+    def test_create_and_fetch_model(self) -> None:
+        fetched_model = user_models.PinnedOpportunityModel.get_model(
+            self.user_id, self.language_code, self.topic_id)
+        assert fetched_model is not None, (
+            'Expected fetched_model to be not None')
+        self.assertEqual(fetched_model.opportunity_id, self.opportunity_id_1)
+
+        user_models.PinnedOpportunityModel.create(
+            'user_id_2', 'en', 'topic_id_1', 'opportunity_id_2')
+
+        fetched_model = (
+            user_models.PinnedOpportunityModel.
+        get_model('user_id_2', 'en', 'topic_id_1'))
+        assert fetched_model is not None, (
+            'Expected fetched_model to be not None')
+        self.assertEqual(fetched_model.opportunity_id, 'opportunity_id_2')
+
+    def test_create_raises_exception_for_existing_instance(self) -> None:
+        with self.assertRaisesRegex(
+            Exception, 'There is already a pinned opportunity' +
+            ' with the given id:'):
+            user_models.PinnedOpportunityModel.create(
+                user_id=self.user_id,
+                language_code=self.language_code,
+                topic_id=self.topic_id,
+                opportunity_id=self.opportunity_id_1
+            )
+
+    def test_get_deletion_policy(self) -> None:
+        self.assertEqual(
+            user_models.PinnedOpportunityModel.get_deletion_policy(),
+            base_models.DELETION_POLICY.DELETE
+        )
+
+    def test_has_reference_to_user_id(self) -> None:
+        self.assertTrue(
+            user_models.PinnedOpportunityModel.
+            has_reference_to_user_id(
+                self.user_id
+            )
+        )
+
+    def test_export_data_valid_user(self) -> None:
+        user_data = user_models.PinnedOpportunityModel.export_data(
+            self.user_id)
+        key = f'{self.language_code}_{self.topic_id}'
+
+        expected_data = {
+            key: {
+                'opportunity_id': self.opportunity_id_1,
+            }
+        }
+
+        self.assertDictEqual(user_data, expected_data)
+
+    def test_model_association_to_user(self) -> None:
+        self.assertEqual(
+            user_models.PinnedOpportunityModel.
+            get_model_association_to_user(),
+            base_models.MODEL_ASSOCIATION_TO_USER.MULTIPLE_INSTANCES_PER_USER
+        )
+
+    def test_get_export_policy(self) -> None:
+        expected_export_policy = {
+            'language_code': base_models.
+                EXPORT_POLICY.EXPORTED_AS_KEY_FOR_TAKEOUT_DICT,
+            'user_id': base_models.EXPORT_POLICY.NOT_APPLICABLE,
+            'topic_id': base_models.EXPORT_POLICY.NOT_APPLICABLE,
+            'opportunity_id': base_models.EXPORT_POLICY.EXPORTED,
+            'created_on': base_models.EXPORT_POLICY.NOT_APPLICABLE,
+            'last_updated': base_models.EXPORT_POLICY.NOT_APPLICABLE,
+            'deleted': base_models.EXPORT_POLICY.NOT_APPLICABLE
+        }
+
+        self.assertEqual(
+            user_models.PinnedOpportunityModel.get_export_policy(),
+            expected_export_policy
+        )
+
+    def test_apply_deletion_policy(self) -> None:
+        user_models.PinnedOpportunityModel.apply_deletion_policy(
+            self.user_id)
+
+        fetched_model = user_models.PinnedOpportunityModel.get_model(
+            self.user_id, self.language_code, self.topic_id)
+        self.assertIsNone(fetched_model)

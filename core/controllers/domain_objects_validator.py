@@ -30,6 +30,9 @@ from core.domain import config_domain
 from core.domain import exp_domain
 from core.domain import image_validation_services
 from core.domain import improvements_domain
+from core.domain import platform_parameter_domain
+from core.domain import platform_parameter_list
+from core.domain import platform_parameter_registry
 from core.domain import question_domain
 from core.domain import skill_domain
 from core.domain import state_domain
@@ -108,6 +111,99 @@ def validate_new_config_property_values(
     return new_config_property
 
 
+def validate_platform_params_values_for_blog_admin(
+    new_platform_parameter_values: Mapping[
+        str, platform_parameter_domain.PlatformDataTypes]
+) -> Mapping[str, platform_parameter_domain.PlatformDataTypes]:
+    """Validates new platform parameter values.
+
+    Args:
+        new_platform_parameter_values: dict. Data that needs to be validated.
+
+    Returns:
+        dict(str, PlatformDataTypes). Returns the dict after validation.
+
+    Raises:
+        Exception. The name of the platform parameter is not of type string.
+        Exception. The value of the platform parameter is not of valid type.
+        Exception. The max_number_of_tags_assigned_to_blog_post platform
+            parameter has incoming value less than or equal to 0.
+    """
+    for name, value in new_platform_parameter_values.items():
+        if not isinstance(name, str):
+            raise Exception(
+                'Platform parameter name should be a string, received'
+                ': %s' % name)
+
+        if not isinstance(value, (bool, float, int, str)):
+            raise Exception(
+                'The value of %s platform parameter is not of valid type, '
+                'it should be one of %s.' % (
+                    name, str(platform_parameter_domain.PlatformDataTypes))
+            )
+
+        parameter = platform_parameter_registry.Registry.get_platform_parameter(
+            name)
+
+        if not (
+            (isinstance(value, bool) and parameter.data_type == 'bool') or
+            (isinstance(value, str) and parameter.data_type == 'string') or
+            (isinstance(value, float) and parameter.data_type == 'number') or
+            (isinstance(value, int) and parameter.data_type == 'number')
+        ):
+            raise Exception(
+                'The value of platform parameter %s is of type \'%s\', '
+                'expected it to be of type \'%s\'' % (
+                    name, value, parameter.data_type)
+            )
+
+        if (
+            name ==
+            platform_parameter_list.ParamNames.
+            MAX_NUMBER_OF_TAGS_ASSIGNED_TO_BLOG_POST.value
+        ):
+            assert isinstance(value, int)
+            if value <= 0:
+                raise Exception(
+                    'The value of %s should be greater than 0, it is %s.' % (
+                        name, value)
+                )
+    # The new_platform_parameter_values do not represent a domain class directly
+    # and in the handler these dict values are used to set platform parameters
+    # individually. Hence conversion of dicts to domain objects is not required
+    # for new_platform_parameter_values.
+    return new_platform_parameter_values
+
+
+def validate_new_default_value_of_platform_parameter(
+    default_value: Mapping[str, platform_parameter_domain.PlatformDataTypes]
+) -> Mapping[str, platform_parameter_domain.PlatformDataTypes]:
+    """Validates new default value of platform parameter.
+
+    Args:
+        default_value: dict. Data that needs to be validated.
+
+    Returns:
+        dict(str, PlatformDataTypes). Returns the default value dict after
+        validating.
+
+    Raises:
+        Exception. The default_value is not of valid type.
+    """
+
+    if not isinstance(default_value['value'], (bool, float, int, str)):
+        raise Exception('Expected type to be %s but received %s' % (
+            platform_parameter_domain.PlatformDataTypes,
+            default_value['value'])
+        )
+
+    # The default_value values do not represent a domain class directly
+    # and in the handler it is used to set the default value of the platform
+    # parameter. Hence conversion of dicts to domain objects is not required
+    # for default_value.
+    return default_value
+
+
 def validate_change_dict_for_blog_post(
     change_dict: blog_services.BlogPostChangeDict
 ) -> blog_services.BlogPostChangeDict:
@@ -133,10 +229,9 @@ def validate_change_dict_for_blog_post(
             change_dict['tags'], False)
         # Validates that the tags in the change dict are from the list of
         # default tags set by admin.
-        list_of_default_tags = config_domain.Registry.get_config_property(
-            'list_of_default_tags_for_blog_post')
+        list_of_default_tags = constants.LIST_OF_DEFAULT_TAGS_FOR_BLOG_POST
         assert list_of_default_tags is not None
-        list_of_default_tags_value = list_of_default_tags.value
+        list_of_default_tags_value = list_of_default_tags
         if not all(
             tag in list_of_default_tags_value for tag in change_dict['tags']
         ):

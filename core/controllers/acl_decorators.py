@@ -27,9 +27,10 @@ from core import feconf
 from core import utils
 from core.constants import constants
 from core.controllers import base
+from core.domain import android_services
 from core.domain import blog_services
 from core.domain import classifier_services
-from core.domain import classroom_services
+from core.domain import classroom_config_services
 from core.domain import email_manager
 from core.domain import feedback_services
 from core.domain import question_services
@@ -186,7 +187,7 @@ def does_classroom_exist(
             Exception. This decorator is not expected to be used with other
                 handler types.
         """
-        classroom = classroom_services.get_classroom_by_url_fragment(
+        classroom = classroom_config_services.get_classroom_by_url_fragment(
             classroom_url_fragment)
 
         if not classroom:
@@ -937,6 +938,51 @@ def can_access_release_coordinator_page(
             'You do not have credentials to access release coordinator page.')
 
     return test_can_access_release_coordinator_page
+
+
+def can_access_translation_stats(
+    handler: Callable[..., _GenericHandlerFunctionReturnType]
+) -> Callable[..., _GenericHandlerFunctionReturnType]:
+    """Decorator to check whether user can access translation stats.
+
+    Args:
+        handler: function. The function to be decorated.
+
+    Returns:
+        function. The newly decorated function that now checks if the user has
+        permission to access translation stats.
+    """
+
+    # Here we use type Any because this method can accept arbitrary number of
+    # arguments with different types.
+    @functools.wraps(handler)
+    def test_can_access_translation_stats(
+        self: _SelfBaseHandlerType, **kwargs: Any
+    ) -> _GenericHandlerFunctionReturnType:
+        """Checks if the user can access translation stats.
+
+        Args:
+            **kwargs: *. Keyword arguments.
+
+        Returns:
+            *. The return value of the decorated function.
+
+        Raises:
+            NotLoggedInException. The user is not logged in.
+            UnauthorizedUserException. The user does not have credentials to
+                access translation stats.
+        """
+        if not self.user_id:
+            raise base.UserFacingExceptions.NotLoggedInException
+
+        if role_services.ACTION_MANAGE_TRANSLATION_CONTRIBUTOR_ROLES in (
+            self.user.actions):
+            return handler(self, **kwargs)
+
+        raise self.UnauthorizedUserException(
+            'You do not have credentials to access translation stats.')
+
+    return test_can_access_translation_stats
 
 
 def can_manage_memcache(
@@ -2590,6 +2636,50 @@ def can_access_learner_dashboard(
     return test_can_access
 
 
+def can_access_feedback_updates(
+    handler: Callable[..., _GenericHandlerFunctionReturnType]
+) -> Callable[..., _GenericHandlerFunctionReturnType]:
+    """Decorator to check access to feedback updates.
+
+    Args:
+        handler: function. The function to be decorated.
+
+    Returns:
+        function. The newly decorated function that now also checks if
+        one can access the feedback updates.
+    """
+
+    # Here we use type Any because this method can accept arbitrary number of
+    # arguments with different types.
+    @functools.wraps(handler)
+    def test_can_access(
+        self: _SelfBaseHandlerType, **kwargs: Any
+    ) -> _GenericHandlerFunctionReturnType:
+        """Checks if the user can access the feedback updates.
+
+        Args:
+            **kwargs: *. Keyword arguments.
+
+        Returns:
+            *. The return value of the decorated function.
+
+        Raises:
+            NotLoggedInException. The user is not logged in.
+            UnauthorizedUserException. The user does not have
+                credentials to access the page.
+        """
+        if not self.user_id:
+            raise base.UserFacingExceptions.NotLoggedInException
+
+        if role_services.ACTION_ACCESS_FEEDBACK_UPDATES in self.user.actions:
+            return handler(self, **kwargs)
+        else:
+            raise self.UnauthorizedUserException(
+                'You do not have the credentials to access this page.')
+
+    return test_can_access
+
+
 def can_access_learner_groups(
     handler: Callable[..., _GenericHandlerFunctionReturnType]
 ) -> Callable[..., _GenericHandlerFunctionReturnType]:
@@ -3166,13 +3256,62 @@ def can_submit_images_to_questions(
         if not self.user_id:
             raise base.UserFacingExceptions.NotLoggedInException
 
-        if role_services.ACTION_SUGGEST_CHANGES in self.user.actions:
+        if any(action in self.user.actions for action in [
+            role_services.ACTION_SUGGEST_CHANGES,
+            role_services.ACTION_EDIT_ANY_QUESTION
+        ]):
             return handler(self, skill_id, **kwargs)
         else:
             raise self.UnauthorizedUserException(
                 'You do not have credentials to submit images to questions.')
 
     return test_can_submit_images_to_questions
+
+
+def can_submit_images_to_explorations(
+    handler: Callable[..., _GenericHandlerFunctionReturnType]
+) -> Callable[..., _GenericHandlerFunctionReturnType]:
+    """Decorator to check whether the user can submit images to explorations.
+
+    Args:
+        handler: function. The function to be decorated.
+
+    Returns:
+        function. The newly decorated function that now also checks if
+        the user has permission to submit images to an exploration.
+    """
+
+    # Here we use type Any because this method can accept arbitrary number of
+    # arguments with different types.
+    @functools.wraps(handler)
+    def test_can_submit_images_to_explorations(
+        self: _SelfBaseHandlerType, target_id: str, **kwargs: Any
+    ) -> _GenericHandlerFunctionReturnType:
+        """Test to see if user can submit images to explorations.
+
+        Args:
+            target_id: str. The target exploration ID.
+            **kwargs: *. Keyword arguments.
+
+        Returns:
+            *. The return value of the decorated function.
+
+        Raises:
+            NotLoggedInException. The user is not logged in.
+            PageNotFoundException. The given page cannot be found.
+            UnauthorizedUserException. The user does not have the
+                credentials to edit the target exploration.
+        """
+        if not self.user_id:
+            raise base.UserFacingExceptions.NotLoggedInException
+
+        if role_services.ACTION_SUGGEST_CHANGES in self.user.actions:
+            return handler(self, target_id, **kwargs)
+        else:
+            raise self.UnauthorizedUserException(
+                'You do not have credentials to submit images to explorations.')
+
+    return test_can_submit_images_to_explorations
 
 
 def can_delete_skill(
@@ -3738,7 +3877,7 @@ def can_access_topic_viewer_page(
             return None
 
         verified_classroom_url_fragment = (
-            classroom_services.get_classroom_url_fragment_for_topic_id(
+            classroom_config_services.get_classroom_url_fragment_for_topic_id(
                 topic.id))
         if classroom_url_fragment != verified_classroom_url_fragment:
             url_substring = topic_url_fragment
@@ -3842,8 +3981,8 @@ def can_access_story_viewer_page(
                 return None
 
             verified_classroom_url_fragment = (
-                classroom_services.get_classroom_url_fragment_for_topic_id(
-                    topic.id))
+                classroom_config_services
+                .get_classroom_url_fragment_for_topic_id(topic.id))
             if classroom_url_fragment != verified_classroom_url_fragment:
                 url_substring = '%s/story/%s' % (
                     topic_url_fragment, story_url_fragment)
@@ -3954,8 +4093,8 @@ def can_access_story_viewer_page_as_logged_in_user(
                 return None
 
             verified_classroom_url_fragment = (
-                classroom_services.get_classroom_url_fragment_for_topic_id(
-                    topic.id))
+                classroom_config_services
+                .get_classroom_url_fragment_for_topic_id(topic.id))
             if classroom_url_fragment != verified_classroom_url_fragment:
                 url_substring = '%s/story/%s' % (
                     topic_url_fragment, story_url_fragment)
@@ -4065,7 +4204,7 @@ def can_access_subtopic_viewer_page(
             return None
 
         verified_classroom_url_fragment = (
-            classroom_services.get_classroom_url_fragment_for_topic_id(
+            classroom_config_services.get_classroom_url_fragment_for_topic_id(
                 topic.id))
         if classroom_url_fragment != verified_classroom_url_fragment:
             url_substring = '%s/revision/%s' % (
@@ -4320,6 +4459,9 @@ def can_edit_entity(
                     self, entity_id, **kwargs)),
             feconf.IMAGE_CONTEXT_QUESTION_SUGGESTIONS: lambda entity_id: (
                 can_submit_images_to_questions(reduced_handler)(
+                    self, entity_id, **kwargs)),
+            feconf.IMAGE_CONTEXT_EXPLORATION_SUGGESTIONS: lambda entity_id: (
+                can_submit_images_to_explorations(reduced_handler)(
                     self, entity_id, **kwargs)),
             feconf.ENTITY_TYPE_STORY: lambda entity_id: (
                 can_edit_story(reduced_handler)(
@@ -4700,3 +4842,50 @@ def is_from_oppia_android(
         return handler(self, **kwargs)
 
     return test_is_from_oppia_android
+
+
+def is_from_oppia_android_build(
+    handler: Callable[..., _GenericHandlerFunctionReturnType]
+) -> Callable[..., _GenericHandlerFunctionReturnType]:
+    """Decorator to check whether the request was sent from Oppia Android build
+    process.
+
+    Args:
+        handler: function. The function to be decorated.
+
+    Returns:
+        function. The newly decorated function.
+    """
+
+    # Here we use type Any because this method can accept arbitrary number of
+    # arguments with different types.
+    @functools.wraps(handler)
+    def test_is_from_oppia_android_build(
+        self: _SelfBaseHandlerType, **kwargs: Any
+    ) -> _GenericHandlerFunctionReturnType:
+        """Checks whether the request was sent from Oppia Android build process.
+
+        Args:
+            **kwargs: *. Keyword arguments.
+
+        Returns:
+            *. The return value of the decorated function.
+
+        Raises:
+            Exception. If the secret API key is not set.
+            UnauthorizedUserException. If incoming request is not from a valid
+                Oppia Android build request.
+        """
+        if (
+            self.request.headers.get('X-ApiKey') is None or
+            not android_services.verify_android_build_secret(
+                self.request.headers['X-ApiKey']
+            )
+        ):
+            raise self.UnauthorizedUserException(
+                'The incoming request is not a valid '
+                'Oppia Android build request.'
+            )
+        return handler(self, **kwargs)
+
+    return test_is_from_oppia_android_build

@@ -743,11 +743,7 @@ class CsrfTokenManagerTests(test_utils.GenericTestBase):
         self.assertFalse(
             base.CsrfTokenManager.is_csrf_token_valid(uid, 'new_token'))
         self.assertFalse(
-            base.CsrfTokenManager.is_csrf_token_valid(uid, 'new/token'))
-
-    def test_non_default_csrf_secret_is_used(self) -> None:
-        base.CsrfTokenManager.create_csrf_token('uid')
-        self.assertNotEqual(base.CSRF_SECRET.value, base.DEFAULT_CSRF_SECRET)
+            base.CsrfTokenManager.is_csrf_token_valid(uid, 'a/new/token'))
 
     def test_token_expiry(self) -> None:
         # This can be any value.
@@ -1520,6 +1516,18 @@ class OppiaMLVMHandlerTests(test_utils.GenericTestBase):
                 '/incorrectmock', payload, expected_status_int=500)
 
     def test_that_correct_derived_class_does_not_raise_exception(self) -> None:
+        def _mock_get_secret(name: str) -> Optional[str]:
+            if name == 'VM_ID':
+                return 'vm_default'
+            elif name == 'SHARED_SECRET_KEY':
+                return '1a2b3c4e'
+            return None
+        swap_secret = self.swap_with_checks(
+            secrets_services,
+            'get_secret',
+            _mock_get_secret,
+            expected_args=[('VM_ID',), ('SHARED_SECRET_KEY',)],
+        )
         payload = {}
         payload['vm_id'] = feconf.DEFAULT_VM_ID
         secret = feconf.DEFAULT_VM_SHARED_SECRET
@@ -1528,7 +1536,7 @@ class OppiaMLVMHandlerTests(test_utils.GenericTestBase):
             secret.encode('utf-8'),
             payload['message'].encode('utf-8'),
             payload['vm_id'])
-        with self.swap(self, 'testapp', self.mock_testapp):
+        with self.swap(self, 'testapp', self.mock_testapp), swap_secret:
             self.post_json(
                 '/correctmock', payload, expected_status_int=200)
 

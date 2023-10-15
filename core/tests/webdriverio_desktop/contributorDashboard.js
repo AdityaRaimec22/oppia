@@ -43,6 +43,7 @@ var ExplorationEditorPage = require(
 var CreatorDashboardPage = require(
   '../webdriverio_utils/CreatorDashboardPage.js'
 );
+var DiagnosticTestPage = require('../webdriverio_utils/DiagnosticTestPage.js');
 
 describe('Contributor dashboard page', function() {
   const TOPIC_NAMES = [
@@ -83,6 +84,7 @@ describe('Contributor dashboard page', function() {
     adminPage = new AdminPage.AdminPage();
     contributorDashboardAdminPage = (
       new ContributorDashboardAdminPage.ContributorDashboardAdminPage());
+    diagnosticTestPage = new DiagnosticTestPage.DiagnosticTestPage();
 
     await users.createUser(USER_EMAILS[0], 'user0');
     await users.createUser(USER_EMAILS[1], 'user1');
@@ -117,6 +119,10 @@ describe('Contributor dashboard page', function() {
         elem = await elem.addItem('Unicode');
         await elem.setValue(TOPIC_ID);
       });
+    await browser.url('/classroom-admin/');
+    await waitFor.pageToFullyLoad();
+    await diagnosticTestPage.createNewClassroomConfig('Math', 'math');
+    await diagnosticTestPage.addTopicIdToClassroomConfig(TOPIC_ID, 0);
     await users.logout();
 
     await users.login(QUESTION_ADMIN_EMAIL);
@@ -496,16 +502,6 @@ describe('Translation contribution featured languages', () => {
       contributorDashboardPage.getTranslateTextTab());
     await users.createAndLoginSuperAdminUser(
       'config@contributorDashboard.com', 'contributorDashboard');
-    var adminPage = new AdminPage.AdminPage();
-    await adminPage.editConfigProperty(
-      'Featured Translation Languages',
-      'List',
-      async function(elem) {
-        var featured = await elem.addItem('Dictionary');
-        await (await featured.editEntry(0, 'Unicode')).setValue('de');
-        await (await featured.editEntry(1, 'Unicode'))
-          .setValue('Partnership with ABC');
-      });
     await users.logout();
   });
 
@@ -515,15 +511,27 @@ describe('Translation contribution featured languages', () => {
   });
 
   it('should show correct featured languages', async function() {
+    let expectedFeaturedLanguages = [
+      'português (Portuguese)',
+      'العربية (Arabic)',
+      'Naijá (Nigerian Pidgin)',
+      'español (Spanish)',
+      'kiswahili (Swahili)',
+      'हिन्दी (Hindi)',
+      'Harshen Hausa (Hausa)',
+      'Ásụ̀sụ́ Ìgbò (Igbo)',
+      'Èdè Yoùbá (Yoruba)'
+    ];
     await contributorDashboardTranslateTextTab
-      .expectFeaturedLanguagesToBe(['Deutsch (German)']);
+      .expectFeaturedLanguagesToBe(expectedFeaturedLanguages);
   });
 
   it('should show correct explanation', async function() {
     await contributorDashboardTranslateTextTab
       .mouseoverFeaturedLanguageTooltip(0);
     await contributorDashboardTranslateTextTab
-      .expectFeaturedLanguageExplanationToBe('Partnership with ABC');
+      .expectFeaturedLanguageExplanationToBe(
+        'For learners in Brazil, Angola and Mozambique.');
   });
 
   afterEach(async function() {

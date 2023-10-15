@@ -23,6 +23,8 @@ var users = require('../webdriverio_utils/users.js');
 var waitFor = require('../webdriverio_utils/waitFor.js');
 var workflow = require('../webdriverio_utils/workflow.js');
 
+var ReleaseCoordinatorPage = require(
+  '../webdriverio_utils/ReleaseCoordinatorPage.js');
 var AdminPage = require('../webdriverio_utils/AdminPage.js');
 var Constants = require('../webdriverio_utils/WebdriverioConstants.js');
 var TopicsAndSkillsDashboardPage =
@@ -38,9 +40,11 @@ var ExplorationEditorPage =
 var ExplorationPlayerPage =
   require('../webdriverio_utils/ExplorationPlayerPage.js');
 var SkillEditorPage = require('../webdriverio_utils/SkillEditorPage.js');
+var DiagnosticTestPage = require('../webdriverio_utils/DiagnosticTestPage.js');
 
 describe('Topic and Story viewer functionality', function() {
   var adminPage = null;
+  var releaseCoordinatorPage = null;
   var topicAndStoryViewerPage = null;
   var topicViewerPage = null;
   var topicsAndSkillsDashboardPage = null;
@@ -74,6 +78,8 @@ describe('Topic and Story viewer functionality', function() {
 
   beforeAll(async function() {
     adminPage = new AdminPage.AdminPage();
+    releaseCoordinatorPage = (
+      new ReleaseCoordinatorPage.ReleaseCoordinatorPage());
     explorationPlayerPage = new ExplorationPlayerPage.ExplorationPlayerPage();
     explorationEditorPage = new ExplorationEditorPage.ExplorationEditorPage();
     explorationEditorMainTab = explorationEditorPage.getMainTab();
@@ -86,16 +92,19 @@ describe('Topic and Story viewer functionality', function() {
     skillEditorPage = new SkillEditorPage.SkillEditorPage();
     storyEditorPage = new StoryEditorPage.StoryEditorPage();
     subTopicViewerPage = new SubTopicViewerPage.SubTopicViewerPage();
+    diagnosticTestPage = new DiagnosticTestPage.DiagnosticTestPage();
     await users.createAndLoginCurriculumAdminUser(
       'creator@storyViewer.com', 'creatorStoryViewer');
 
     // The below lines enable the end_chapter_celebration flag in prod mode.
     // They should be removed after the end_chapter_celebration flag is
     // deprecated.
-    await adminPage.getFeaturesTab();
+    await adminPage.get();
+    await adminPage.addRole('creatorStoryViewer', 'release coordinator');
+    await releaseCoordinatorPage.getFeaturesTab();
     var endChapterFlag = (
-      await adminPage.getEndChapterCelebrationFeatureElement());
-    await adminPage.enableFeatureForProd(endChapterFlag);
+      await releaseCoordinatorPage.getEndChapterCelebrationFeatureElement());
+    await releaseCoordinatorPage.enableFeature(endChapterFlag);
 
     await createDummyExplorations();
     var handle = await browser.getWindowHandle();
@@ -119,6 +128,10 @@ describe('Topic and Story viewer functionality', function() {
         await elem.setValue(topicId);
       });
 
+    await browser.url('/classroom-admin/');
+    await waitFor.pageToFullyLoad();
+    await diagnosticTestPage.createNewClassroomConfig('Math', 'math');
+    await diagnosticTestPage.addTopicIdToClassroomConfig(topicId, 0);
     await topicsAndSkillsDashboardPage.get();
     await topicsAndSkillsDashboardPage.createSkillWithDescriptionAndExplanation(
       'Skill TASV1', 'Concept card explanation', false);
@@ -170,9 +183,7 @@ describe('Topic and Story viewer functionality', function() {
     await topicEditorPage.saveSubtopicExplanation();
     await topicEditorPage.saveTopic('Added subtopic.');
     await topicEditorPage.navigateToTopicEditorTab();
-    await topicEditorPage.navigateToReassignModal();
-    await topicEditorPage.dragSkillToSubtopic('Skill TASV1', 0);
-    await topicEditorPage.saveRearrangedSkills();
+    await topicEditorPage.replacementDragSkillToSubtopic(0);
     await topicEditorPage.saveTopic('Added skill to subtopic.');
     await topicEditorPage.publishTopic();
     await topicsAndSkillsDashboardPage.editTopic('Topic TASV1');

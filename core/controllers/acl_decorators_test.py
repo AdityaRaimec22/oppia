@@ -29,6 +29,8 @@ from core.controllers import incoming_app_feedback_report
 from core.domain import blog_services
 from core.domain import classifier_domain
 from core.domain import classifier_services
+from core.domain import classroom_config_domain
+from core.domain import classroom_config_services
 from core.domain import config_services
 from core.domain import exp_domain
 from core.domain import exp_services
@@ -51,7 +53,7 @@ from core.domain import user_services
 from core.platform import models
 from core.tests import test_utils
 
-from typing import Dict, Final, List, TypedDict, Union
+from typing import Dict, Final, List, Optional, TypedDict, Union
 import webapp2
 import webtest
 
@@ -984,6 +986,20 @@ class ClassroomExistDecoratorTests(test_utils.GenericTestBase):
                 'course_details': '',
                 'topic_list_intro': ''
             }])
+
+        math_classroom_dict: classroom_config_domain.ClassroomDict = {
+            'classroom_id': 'math_classroom_id',
+            'name': 'math',
+            'url_fragment': 'math',
+            'course_details': 'Course details for classroom.',
+            'topic_list_intro': 'Topics covered for classroom',
+            'topic_id_to_prerequisite_topic_ids': {}
+        }
+        math_classroom = classroom_config_domain.Classroom.from_dict(
+            math_classroom_dict)
+
+        classroom_config_services.create_new_classroom(math_classroom)
+
         self.mock_testapp = webtest.TestApp(webapp2.WSGIApplication(
             [webapp2.Route(
                 '/mock_classroom_data/<classroom_url_fragment>',
@@ -2342,6 +2358,66 @@ class CanRunAnyJobDecoratorTests(test_utils.GenericTestBase):
 
         with self.swap(self, 'testapp', self.mock_testapp):
             response = self.get_json('/run-anny-job')
+
+        self.assertEqual(response['success'], 1)
+        self.logout()
+
+
+class CanAccessTranslationStatsDecoratorTests(test_utils.GenericTestBase):
+    """Tests for can_access_translation_stats decorator."""
+
+    username = 'user'
+    user_email = 'user@example.com'
+    TRANSLATION_ADMIN_EMAIL: Final = 'translatorExpert@app.com'
+    TRANSLATION_ADMIN_USERNAME: Final = 'translationExpert'
+
+    class MockHandler(base.BaseHandler[Dict[str, str], Dict[str, str]]):
+        GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+        URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+        HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
+        @acl_decorators.can_access_translation_stats
+        def get(self) -> None:
+            self.render_json({'success': 1})
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.signup(self.user_email, self.username)
+
+        self.signup(
+            self.TRANSLATION_ADMIN_EMAIL, self.TRANSLATION_ADMIN_USERNAME)
+        self.add_user_role(
+            self.TRANSLATION_ADMIN_USERNAME, feconf.ROLE_ID_TRANSLATION_ADMIN)
+
+        self.mock_testapp = webtest.TestApp(webapp2.WSGIApplication(
+            [webapp2.Route('/translation-stats', self.MockHandler)],
+            debug=feconf.DEBUG,
+        ))
+
+    def test_not_logged_in_user_cannot_access_translation_stats(self) -> None:
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json(
+                '/translation-stats', expected_status_int=401)
+
+        self.assertEqual(
+            response['error'],
+            'You must be logged in to access this resource.')
+
+    def test_unauthorized_user_cannot_access_translation_stats(self) -> None:
+        self.login(self.user_email)
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json(
+                '/translation-stats', expected_status_int=401)
+
+        self.assertEqual(
+            response['error'],
+            'You do not have credentials to access translation stats.')
+        self.logout()
+
+    def test_authorized_user_can_access_translation_stats(self) -> None:
+        self.login(self.TRANSLATION_ADMIN_EMAIL)
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json('/translation-stats')
 
         self.assertEqual(response['success'], 1)
         self.logout()
@@ -4268,6 +4344,55 @@ class AccessLearnerDashboardDecoratorTests(test_utils.GenericTestBase):
         self.logout()
 
     def test_guest_user_cannot_access_learner_dashboard(self) -> None:
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json('/mock/', expected_status_int=401)
+        error_msg = 'You must be logged in to access this resource.'
+        self.assertEqual(response['error'], error_msg)
+
+
+class AccessFeedbackUpdatesDecoratorTests(test_utils.GenericTestBase):
+    """Tests the decorator can_access_learner_dashboard."""
+
+    user = 'user'
+    user_email = 'user@example.com'
+    banned_user = 'banneduser'
+    banned_user_email = 'banned@example.com'
+
+    class MockHandler(base.BaseHandler[Dict[str, str], Dict[str, str]]):
+        GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+        URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+        HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
+        @acl_decorators.can_access_feedback_updates
+        def get(self) -> None:
+            self.render_json({'success': True})
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.signup(self.user_email, self.user)
+        self.signup(self.banned_user_email, self.banned_user)
+        self.mark_user_banned(self.banned_user)
+        self.mock_testapp = webtest.TestApp(webapp2.WSGIApplication(
+            [webapp2.Route('/mock/', self.MockHandler)],
+            debug=feconf.DEBUG,
+        ))
+
+    def test_banned_user_cannot_access_feedback_updates(self) -> None:
+        self.login(self.banned_user_email)
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json('/mock/', expected_status_int=401)
+        error_msg = 'You do not have the credentials to access this page.'
+        self.assertEqual(response['error'], error_msg)
+        self.logout()
+
+    def test_exploration_editor_can_access_feedback_updates(self) -> None:
+        self.login(self.user_email)
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json('/mock/')
+        self.assertTrue(response['success'])
+        self.logout()
+
+    def test_guest_user_cannot_access_feedback_updates(self) -> None:
         with self.swap(self, 'testapp', self.mock_testapp):
             response = self.get_json('/mock/', expected_status_int=401)
         error_msg = 'You must be logged in to access this resource.'
@@ -6825,6 +6950,39 @@ class EditEntityDecoratorTests(test_utils.GenericTestBase):
                 ' images to questions.')
         self.logout()
 
+    def test_can_submit_images_to_explorations(self) -> None:
+        self.login(self.CURRICULUM_ADMIN_EMAIL)
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json('/mock_edit_entity/%s/%s' % (
+                feconf.IMAGE_CONTEXT_EXPLORATION_SUGGESTIONS,
+                self.published_exp_id))
+            self.assertEqual(response['entity_id'], self.published_exp_id)
+            self.assertEqual(response['entity_type'], 'exploration_suggestions')
+        self.logout()
+
+    def test_unauthenticated_users_cannot_submit_images_to_explorations(
+        self
+    ) -> None:
+        with self.swap(self, 'testapp', self.mock_testapp):
+            self.get_json('/mock_edit_entity/%s/%s' % (
+                feconf.IMAGE_CONTEXT_EXPLORATION_SUGGESTIONS,
+                self.published_exp_id),
+                expected_status_int=401)
+
+    def test_cannot_submit_images_to_explorations_without_having_permissions(
+        self
+    ) -> None:
+        self.login(self.user_email)
+        with self.swap(self, 'testapp', self.mock_testapp):
+            response = self.get_json('/mock_edit_entity/%s/%s' % (
+                feconf.IMAGE_CONTEXT_EXPLORATION_SUGGESTIONS,
+                self.published_exp_id),
+                expected_status_int=401)
+            self.assertEqual(
+                response['error'], 'You do not have credentials to submit'
+                ' images to explorations.')
+        self.logout()
+
     def test_can_edit_blog_post(self) -> None:
         self.login(self.BLOG_ADMIN_EMAIL)
         blog_admin_id = (
@@ -7053,6 +7211,21 @@ class OppiaMLAccessDecoratorTest(test_utils.GenericTestBase):
         def post(self) -> None:
             self.render_json({'job_id': 'new_job'})
 
+    def _mock_get_secret(self, name: str) -> Optional[str]:
+        """Mock for the get_secret function.
+
+        Args:
+            name: str. The name of the secret to retrieve the value.
+
+        Returns:
+            Optional[str]. The value of the secret.
+        """
+        if name == 'VM_ID':
+            return 'vm_default'
+        elif name == 'SHARED_SECRET_KEY':
+            return '1a2b3c4e'
+        return None
+
     def setUp(self) -> None:
         super().setUp()
         self.mock_testapp = webtest.TestApp(webapp2.WSGIApplication(
@@ -7069,8 +7242,14 @@ class OppiaMLAccessDecoratorTest(test_utils.GenericTestBase):
             secret.encode('utf-8'),
             payload['message'].encode('utf-8'),
             payload['vm_id'])
+        swap_secret = self.swap_with_checks(
+            secrets_services,
+            'get_secret',
+            self._mock_get_secret,
+            expected_args=[('VM_ID',), ('SHARED_SECRET_KEY',)],
+        )
 
-        with self.swap(self, 'testapp', self.mock_testapp):
+        with self.swap(self, 'testapp', self.mock_testapp), swap_secret:
             self.post_json(
                 '/ml/nextjobhandler', payload,
                 expected_status_int=401)
@@ -7096,8 +7275,14 @@ class OppiaMLAccessDecoratorTest(test_utils.GenericTestBase):
         payload['message'] = json.dumps('malicious message')
         payload['signature'] = classifier_services.generate_signature(
             secret.encode('utf-8'), 'message'.encode('utf-8'), payload['vm_id'])
+        swap_secret = self.swap_with_checks(
+            secrets_services,
+            'get_secret',
+            self._mock_get_secret,
+            expected_args=[('VM_ID',), ('SHARED_SECRET_KEY',)],
+        )
 
-        with self.swap(self, 'testapp', self.mock_testapp):
+        with self.swap(self, 'testapp', self.mock_testapp), swap_secret:
             self.post_json(
                 '/ml/nextjobhandler', payload, expected_status_int=401)
 
@@ -7110,8 +7295,14 @@ class OppiaMLAccessDecoratorTest(test_utils.GenericTestBase):
             secret.encode('utf-8'),
             payload['message'].encode('utf-8'),
             payload['vm_id'])
+        swap_secret = self.swap_with_checks(
+            secrets_services,
+            'get_secret',
+            self._mock_get_secret,
+            expected_args=[('VM_ID',), ('SHARED_SECRET_KEY',)],
+        )
 
-        with self.swap(self, 'testapp', self.mock_testapp):
+        with self.swap(self, 'testapp', self.mock_testapp), swap_secret:
             json_response = self.post_json('/ml/nextjobhandler', payload)
 
         self.assertEqual(json_response['job_id'], 'new_job')
@@ -7630,3 +7821,85 @@ class CanAccessClassroomAdminPageDecoratorTests(test_utils.GenericTestBase):
 
         self.assertEqual(response['success'], 1)
         self.logout()
+
+
+class IsFromOppiaAndroidBuildDecoratorTests(test_utils.GenericTestBase):
+    """Tests for is_from_oppia_android_build decorator."""
+
+    user_email = 'user@example.com'
+    username = 'user'
+    secret = 'webhook_secret'
+    invalid_secret = 'invalid'
+
+    class MockHandler(base.BaseHandler[Dict[str, str], Dict[str, str]]):
+        GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+        URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+        HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {
+            'GET': {}
+        }
+
+        @acl_decorators.is_from_oppia_android_build
+        def get(self) -> None:
+            self.render_json({'secret': self.request.headers.get('X-ApiKey')})
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.mock_testapp = webtest.TestApp(webapp2.WSGIApplication(
+            [webapp2.Route('/mock_secret_page', self.MockHandler)],
+            debug=feconf.DEBUG,
+        ))
+
+    def test_error_when_android_build_secret_is_none(self) -> None:
+        testapp_swap = self.swap(self, 'testapp', self.mock_testapp)
+        swap_api_key_secrets_return_none = self.swap_with_checks(
+            secrets_services,
+            'get_secret',
+            lambda _: None,
+            expected_args=[
+                ('ANDROID_BUILD_SECRET',),
+            ]
+        )
+
+        with testapp_swap:
+            with swap_api_key_secrets_return_none:
+                response = self.get_json(
+                    '/mock_secret_page',
+                    expected_status_int=401,
+                    headers={'X-ApiKey': 'secret'}
+                )
+
+        self.assertEqual(
+            response['error'],
+            'The incoming request is not a valid Oppia Android build request.'
+        )
+
+    def test_error_when_given_api_key_is_invalid(self) -> None:
+        testapp_swap = self.swap(self, 'testapp', self.mock_testapp)
+        mailchimp_swap = self.swap_to_always_return(
+            secrets_services, 'get_secret', 'secret')
+
+        with testapp_swap, mailchimp_swap:
+            response = self.get_json(
+                '/mock_secret_page',
+                expected_status_int=401,
+                headers={'X-ApiKey': 'nonsecret'}
+            )
+
+        self.assertEqual(
+            response['error'],
+            'The incoming request is not a valid Oppia Android build request.'
+        )
+
+    def test_no_error_when_given_api_key_is_valid(self) -> None:
+        testapp_swap = self.swap(self, 'testapp', self.mock_testapp)
+        mailchimp_swap = self.swap_to_always_return(
+            secrets_services, 'get_secret', 'secret')
+
+        with testapp_swap, mailchimp_swap:
+            response = self.get_json(
+                '/mock_secret_page',
+                expected_status_int=200,
+                headers={'X-ApiKey': 'secret'}
+            )
+
+        self.assertEqual(response['secret'], 'secret')

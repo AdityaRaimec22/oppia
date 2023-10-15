@@ -25,7 +25,7 @@ import { EventEmitter, Injectable } from '@angular/core';
 
 import { AnswerGroup } from
   'domain/exploration/AnswerGroupObjectFactory';
-import { Hint } from 'domain/exploration/HintObjectFactory';
+import { Hint } from 'domain/exploration/hint-object.model';
 import { SubtitledHtml } from
   'domain/exploration/subtitled-html.model';
 import {
@@ -88,7 +88,7 @@ export class StateEditorService {
   correctnessFeedbackEnabled: boolean = false;
   inQuestionMode: boolean = false;
   misconceptionsBySkill: {} = {};
-  explorationIsWhitelisted: boolean = false;
+  explorationIsCurated: boolean = false;
   solicitAnswerDetails: boolean = false;
   cardIsCheckpoint: boolean = false;
   stateContentEditorInitialised: boolean = false;
@@ -99,6 +99,7 @@ export class StateEditorService {
   stateEditorDirectiveInitialised: boolean = false;
   currentRuleInputIsValid: boolean = false;
   inapplicableSkillMisconceptionIds: string[] = [];
+  initActiveContentId: string | null = null;
 
   updateStateContentEditorInitialised(): void {
     this.stateContentEditorInitialised = true;
@@ -155,12 +156,8 @@ export class StateEditorService {
     this.activeStateName = newActiveStateName;
   }
 
-  isExplorationWhitelisted(): boolean {
-    return this.explorationIsWhitelisted;
-  }
-
-  updateExplorationWhitelistedStatus(value: boolean): void {
-    this.explorationIsWhitelisted = value;
+  isExplorationCurated(): boolean {
+    return this.explorationIsCurated;
   }
 
   setMisconceptionsBySkill(newMisconceptionsBySkill: {}): void {
@@ -321,6 +318,14 @@ export class StateEditorService {
       throw new Error('Active State for this solution is not set');
     }
     this.solutionValidityService.deleteSolutionValidity(this.activeStateName);
+  }
+
+  setInitActiveContentId(newActiveContentId: string | null): void {
+    this.initActiveContentId = newActiveContentId;
+  }
+
+  getInitActiveContentId(): string | null {
+    return this.initActiveContentId;
   }
 
   get onStateEditorInitialized(): EventEmitter<State> {

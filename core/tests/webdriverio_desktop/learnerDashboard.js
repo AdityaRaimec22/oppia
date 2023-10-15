@@ -19,6 +19,7 @@
 var general = require('../webdriverio_utils/general.js');
 var users = require('../webdriverio_utils/users.js');
 var workflow = require('../webdriverio_utils/workflow.js');
+var waitFor = require('../webdriverio_utils/waitFor.js');
 
 var TopicsAndSkillsDashboardPage =
   require('../webdriverio_utils/TopicsAndSkillsDashboardPage.js');
@@ -39,6 +40,7 @@ var ExplorationEditorPage =
   require('../webdriverio_utils/ExplorationEditorPage.js');
 var Constants = require('../webdriverio_utils/WebdriverioConstants.js');
 var SkillEditorPage = require('../webdriverio_utils/SkillEditorPage.js');
+var DiagnosticTestPage = require('../webdriverio_utils/DiagnosticTestPage.js');
 
 describe('Learner dashboard functionality', function() {
   var explorationPlayerPage = null;
@@ -90,6 +92,7 @@ describe('Learner dashboard functionality', function() {
     explorationPlayerPage = new ExplorationPlayerPage.ExplorationPlayerPage();
     subscriptionDashboardPage =
       new SubscriptionDashboardPage.SubscriptionDashboardPage();
+    diagnosticTestPage = new DiagnosticTestPage.DiagnosticTestPage();
   });
 
   it('should display learners subscriptions', async function() {
@@ -113,9 +116,9 @@ describe('Learner dashboard functionality', function() {
     await users.login('learner1@learnerDashboard.com');
     // Subscribe to both the creators.
     await subscriptionDashboardPage.navigateToUserSubscriptionPage(creator1Id);
-    await subscriptionDashboardPage.navigateToSubscriptionButton();
+    await subscriptionDashboardPage.clickSubscribeButton();
     await subscriptionDashboardPage.navigateToUserSubscriptionPage(creator2Id);
-    await subscriptionDashboardPage.navigateToSubscriptionButton();
+    await subscriptionDashboardPage.clickSubscribeButton();
 
     // Completing exploration 'Activations' to activate /learner_dashboard.
     await libraryPage.get();
@@ -135,38 +138,6 @@ describe('Learner dashboard functionality', function() {
     // The first user (collectionAdm) that learner subscribes to is placed
     // last in the list.
     await learnerDashboardPage.expectSubscriptionLastNameToMatch('collect...');
-    await users.logout();
-  });
-
-  it('should display learner feedback threads', async function() {
-    await users.createUser(
-      'learner2@learnerDashboard.com', 'learner2learnerDashboard');
-    await users.createUser(
-      'feedbackAdm@learnerDashboard.com', 'feedbackAdmlearnerDashboard');
-    await users.login('feedbackAdm@learnerDashboard.com');
-    await workflow.createAndPublishExploration(
-      'BUS101',
-      'Business',
-      'Learn about different business regulations around the world.',
-      'English',
-      true
-    );
-    await users.logout();
-
-    await users.login('learner2@learnerDashboard.com');
-    var feedback = 'A good exploration. Would love to see a few ' +
-      'more questions';
-    await libraryPage.get();
-    await libraryPage.findExploration('BUS101');
-    await libraryPage.playExploration('BUS101');
-    await explorationPlayerPage.submitFeedback(feedback);
-
-    // Verify feedback thread is created.
-    await learnerDashboardPage.get();
-    await learnerDashboardPage.navigateToFeedbackSection();
-    await learnerDashboardPage.expectFeedbackExplorationTitleToMatch('BUS101');
-    await learnerDashboardPage.navigateToFeedbackThread();
-    await learnerDashboardPage.expectFeedbackMessageToMatch(feedback);
     await users.logout();
   });
 
@@ -263,6 +234,10 @@ describe('Learner dashboard functionality', function() {
         elem = await elem.addItem('Unicode');
         await elem.setValue(topicId);
       });
+    await browser.url('/classroom-admin/');
+    await waitFor.pageToFullyLoad();
+    await diagnosticTestPage.createNewClassroomConfig('Math', 'math');
+    await diagnosticTestPage.addTopicIdToClassroomConfig(topicId, 0);
     await topicsAndSkillsDashboardPage.get();
     await topicsAndSkillsDashboardPage.expectNumberOfTopicsToBe(1);
     (
@@ -295,10 +270,8 @@ describe('Learner dashboard functionality', function() {
     await topicEditorPage.saveTopic('Added subtopic.');
 
     await topicEditorPage.navigateToTopicEditorTab();
-    await topicEditorPage.navigateToReassignModal();
 
-    await topicEditorPage.dragSkillToSubtopic('Learner Dashboard Skill 1', 0);
-    await topicEditorPage.saveRearrangedSkills();
+    await topicEditorPage.replacementDragSkillToSubtopic(0);
     await topicEditorPage.saveTopic('Added skill to subtopic.');
 
     await topicEditorPage.updateMetaTagContent('meta tag content');
@@ -353,6 +326,9 @@ describe('Learner dashboard functionality', function() {
         elem = await elem.addItem('Unicode');
         await elem.setValue(topicId);
       });
+    await browser.url('/classroom-admin/');
+    await waitFor.pageToFullyLoad();
+    await diagnosticTestPage.addTopicIdToClassroomConfig(topicId, 0);
 
     await topicsAndSkillsDashboardPage.get();
     await topicsAndSkillsDashboardPage.expectNumberOfTopicsToBe(2);
@@ -405,14 +381,7 @@ describe('Learner dashboard functionality', function() {
       Constants.TEST_SVG_PATH, 'Subtopic content');
     await topicEditorPage.saveTopic('Added subtopic.');
     await topicEditorPage.navigateToTopicEditorTab();
-    await topicEditorPage.navigateToReassignModal();
-    await topicEditorPage.expectUncategorizedSkillsToBe(
-      ['Learner Dashboard Skill 2']);
-    await topicEditorPage.expectSubtopicWithIndexToHaveSkills(0, []);
-    await topicEditorPage.dragSkillToSubtopic('Learner Dashboard Skill 2', 0);
-    await topicEditorPage.expectSubtopicWithIndexToHaveSkills(0, [
-      'Learner Dashboard Skill 2']);
-    await topicEditorPage.saveRearrangedSkills();
+    await topicEditorPage.replacementDragSkillToSubtopic(0);
     await topicEditorPage.saveTopic('Added skill to subtopic.');
     await topicEditorPage.updateMetaTagContent('topic meta tag');
     await topicEditorPage.updatePageTitleFragment('topic page title');

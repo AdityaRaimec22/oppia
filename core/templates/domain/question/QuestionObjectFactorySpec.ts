@@ -20,7 +20,6 @@
 // QuestionObjectFactory.ts is upgraded to Angular 8.
 import { AnswerGroupObjectFactory } from
   'domain/exploration/AnswerGroupObjectFactory';
-import { HintObjectFactory } from 'domain/exploration/HintObjectFactory';
 import { MisconceptionObjectFactory } from
   'domain/skill/MisconceptionObjectFactory';
 import { OutcomeObjectFactory } from
@@ -56,8 +55,6 @@ describe('Question object factory', function() {
     $provide.value(
       'AnswerGroupObjectFactory', new AnswerGroupObjectFactory(
         new OutcomeObjectFactory()));
-    $provide.value(
-      'HintObjectFactory', new HintObjectFactory());
     $provide.value(
       'MisconceptionObjectFactory', new MisconceptionObjectFactory());
     $provide.value(
@@ -254,39 +251,6 @@ describe('Question object factory', function() {
     interaction.answerGroups[0].taggedSkillMisconceptionId = 'skillId1-id';
     expect(sampleQuestion.getUnaddressedMisconceptionNames(
       misconceptionsDict)).toEqual(['name_2', 'name_3']);
-  });
-
-  it('should correctly validate question', function() {
-    var interaction = sampleQuestion.getStateData().interaction;
-
-    expect(sampleQuestion.getValidationErrorMessage()).toBeNull();
-
-    interaction.defaultOutcome.feedback.html = '';
-    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
-      'Please enter a feedback for the default outcome.');
-
-    interaction.defaultOutcome.feedback.html = 'feedback';
-
-    interaction.answerGroups[0].outcome.labelledAsCorrect = false;
-    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
-      'At least one answer should be marked correct');
-
-    interaction.solution = null;
-    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
-      'A solution must be specified');
-
-    interaction.hints = [];
-    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
-      'At least 1 hint should be specified');
-
-    interaction.id = null;
-    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
-      'An interaction must be specified');
-
-    var questionContent = sampleQuestion.getStateData().content;
-    questionContent.html = '';
-    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
-      'Please enter a question.');
   });
 
   it('should correctly create a Default Question', function() {

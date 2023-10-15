@@ -181,7 +181,6 @@ import { GraphUtilsService } from
   'interactions/GraphInput/directives/graph-utils.service';
 import { GuestCollectionProgressService } from
   'domain/collection/guest-collection-progress.service';
-import { HintObjectFactory } from 'domain/exploration/HintObjectFactory';
 import { HtmlEscaperService } from 'services/html-escaper.service';
 import { I18nLanguageCodeService } from 'services/i18n-language-code.service';
 import { IdGenerationService } from 'services/id-generation.service';
@@ -212,8 +211,6 @@ import { ItemSelectionInputValidationService } from
   // eslint-disable-next-line max-len
   'interactions/ItemSelectionInput/directives/item-selection-input-validation.service';
 import { LanguageUtilService } from 'domain/utilities/language-util.service';
-import { LearnerActionObjectFactory } from
-  'domain/statistics/LearnerActionObjectFactory';
 import { LearnerAnswerDetailsBackendApiService } from
   'domain/statistics/learner-answer-details-backend-api.service';
 import { LearnerDashboardBackendApiService } from
@@ -322,8 +319,6 @@ import { PredictionAlgorithmRegistryService } from
   'pages/exploration-player-page/services/prediction-algorithm-registry.service';
 import { PretestQuestionBackendApiService } from
   'domain/question/pretest-question-backend-api.service';
-import { ProfileLinkImageBackendApiService } from
-  'components/profile-link-directives/profile-link-image-backend-api.service';
 import { ProfilePageBackendApiService } from
   'pages/profile-page/profile-page-backend-api.service';
 import { PythonProgramTokenizer } from 'classifiers/python-program.tokenizer';
@@ -483,6 +478,8 @@ import { WrittenTranslationsObjectFactory } from
 import { SolutionVerificationService } from
   // eslint-disable-next-line max-len
   'pages/exploration-editor-page/editor-tab/services/solution-verification.service';
+import { ResponsesService } from
+  'pages/exploration-editor-page/editor-tab/services/responses.service';
 import { QuestionValidationService } from './question-validation.service';
 import { MathInteractionsService } from './math-interactions.service';
 
@@ -559,8 +556,6 @@ export class UpgradedServices {
     upgradedServices['InteractionSpecsService'] = new InteractionSpecsService();
     upgradedServices['ItemSelectionInputRulesService'] =
       new ItemSelectionInputRulesService();
-    upgradedServices['LearnerActionObjectFactory'] =
-      new LearnerActionObjectFactory();
     upgradedServices['LearnerParamsService'] = new LearnerParamsService();
     upgradedServices['LoaderService'] = new LoaderService();
     upgradedServices['LoggerService'] = new LoggerService();
@@ -615,7 +610,8 @@ export class UpgradedServices {
       new ThreadStatusDisplayService();
     upgradedServices['Title'] = new Title({});
     upgradedServices['TopicsAndSkillsDashboardPageService'] =
-        new TopicsAndSkillsDashboardPageService();
+        new TopicsAndSkillsDashboardPageService(
+          upgradedServices['PlatformFeatureService']);
     upgradedServices['UnitsObjectFactory'] = new UnitsObjectFactory();
     upgradedServices['UtilsService'] = new UtilsService();
     upgradedServices['VersionTreeService'] = new VersionTreeService();
@@ -674,7 +670,6 @@ export class UpgradedServices {
     upgradedServices['GuestCollectionProgressService'] =
       new GuestCollectionProgressService(
         upgradedServices['WindowRef']);
-    upgradedServices['HintObjectFactory'] = new HintObjectFactory();
     upgradedServices['HtmlEscaperService'] = new HtmlEscaperService(
       upgradedServices['LoggerService']);
     upgradedServices['HttpXhrBackend'] = new HttpXhrBackend(
@@ -736,14 +731,27 @@ export class UpgradedServices {
         upgradedServices['baseInteractionValidationService']);
     upgradedServices['PlayerTranscriptService'] = new PlayerTranscriptService(
       upgradedServices['LoggerService']);
-    upgradedServices['PlaythroughObjectFactory'] = new PlaythroughObjectFactory(
-      upgradedServices['LearnerActionObjectFactory']);
+    upgradedServices['PlaythroughObjectFactory'] =
+      new PlaythroughObjectFactory();
     upgradedServices['PythonProgramTokenizer'] = new PythonProgramTokenizer(
       upgradedServices['LoggerService']);
+    upgradedServices['ResponsesService'] =
+      new ResponsesService(
+        upgradedServices['AlertsService'],
+        upgradedServices['LoggerService'],
+        upgradedServices['OutcomeObjectFactory'],
+        upgradedServices['SolutionValidityService'],
+        upgradedServices['SolutionVerificationService'],
+        upgradedServices['StateCustomizationArgsService'],
+        upgradedServices['StateEditorService'],
+        upgradedServices['StateInteractionIdService'],
+        upgradedServices['StateSolutionService']
+      );
     upgradedServices['QuestionValidationService'] =
-    new QuestionValidationService(
-      upgradedServices['StateEditorService']
-    );
+      new QuestionValidationService(
+        upgradedServices['ResponsesService'],
+        upgradedServices['StateEditorService']
+      );
     upgradedServices['RatioExpressionInputValidationService'] =
           new RatioExpressionInputValidationService(
             upgradedServices['baseInteractionValidationService']);
@@ -1008,7 +1016,8 @@ export class UpgradedServices {
       new ProfilePageBackendApiService(
         upgradedServices['UrlInterpolationService'],
         upgradedServices['HttpClient'],
-        upgradedServices['UrlService']);
+        upgradedServices['UrlService'],
+        upgradedServices['UserService']);
     upgradedServices['QuestionBackendApiService'] =
       new QuestionBackendApiService(
         upgradedServices['HttpClient'],
@@ -1095,6 +1104,8 @@ export class UpgradedServices {
       new UserBackendApiService(
         upgradedServices['HttpClient']);
     upgradedServices['UserService'] = new UserService(
+      upgradedServices['AssetsBackendApiService'],
+      upgradedServices['ImageLocalStorageService'],
       upgradedServices['UrlInterpolationService'],
       upgradedServices['UrlService'],
       upgradedServices['WindowRef'],
@@ -1138,9 +1149,6 @@ export class UpgradedServices {
     upgradedServices['PredictionAlgorithmRegistryService'] =
       new PredictionAlgorithmRegistryService(
         upgradedServices['TextInputPredictionService']);
-    upgradedServices['ProfileLinkImageBackendApiService'] =
-      new ProfileLinkImageBackendApiService(
-        upgradedServices['HttpClient']);
     upgradedServices['UserExplorationPermissionsService'] = (
       new UserExplorationPermissionsService(
         upgradedServices['ExplorationPermissionsBackendApiService']));
@@ -1189,7 +1197,6 @@ export class UpgradedServices {
     // Topological level: 7.
     upgradedServices['InteractionObjectFactory'] = new InteractionObjectFactory(
       upgradedServices['AnswerGroupObjectFactory'],
-      upgradedServices['HintObjectFactory'],
       upgradedServices['SolutionObjectFactory'],
       upgradedServices['OutcomeObjectFactory'],
       upgradedServices['SubtitledUnicodeObjectFactory']);

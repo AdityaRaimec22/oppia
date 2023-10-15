@@ -122,6 +122,7 @@ DEPRECATED_CMD_MARK_WRITTEN_TRANSLATION_AS_NEEDING_UPDATE: Final = (
 DEPRECATED_CMD_MARK_WRITTEN_TRANSLATIONS_AS_NEEDING_UPDATE: Final = (
     'mark_written_translations_as_needing_update')
 CMD_MARK_TRANSLATIONS_NEEDS_UPDATE: Final = 'mark_translations_needs_update'
+CMD_EDIT_TRANSLATION: Final = 'edit_translation'
 # This takes additional 'content_id' parameters.
 CMD_REMOVE_TRANSLATIONS: Final = 'remove_translations'
 # This takes additional 'property_name' and 'new_value' parameters.
@@ -394,6 +395,14 @@ class ExplorationChange(change_domain.BaseChange):
     }, {
         'name': CMD_MARK_TRANSLATIONS_NEEDS_UPDATE,
         'required_attribute_names': ['content_id'],
+        'optional_attribute_names': [],
+        'user_id_attribute_names': [],
+        'allowed_values': {},
+        'deprecated_values': {}
+    }, {
+        'name': CMD_EDIT_TRANSLATION,
+        'required_attribute_names': [
+            'content_id', 'language_code', 'translation'],
         'optional_attribute_names': [],
         'user_id_attribute_names': [],
         'allowed_values': {},
@@ -889,6 +898,16 @@ class TransientCheckpointUrlDict(TypedDict):
     most_recently_reached_checkpoint_exp_version: int
 
 
+class EditTranslationsChangesCmd(ExplorationChange):
+    """Class representing the ExplorationChange's
+    CMD_EDIT_TRANSLATION command.
+    """
+
+    language_code: str
+    content_id: str
+    translation: feconf.TranslatedContentDict
+
+
 class TransientCheckpointUrl:
     """Domain object representing the checkpoint progress of a
     logged-out user.
@@ -1234,6 +1253,7 @@ class ExplorationDict(TypedDict):
     correctness_feedback_enabled: bool
     edits_allowed: bool
     next_content_id_index: int
+    version: int
 
 
 class VersionedExplorationDict(ExplorationDict):
@@ -1266,7 +1286,6 @@ class VersionedExplorationStatesDict(TypedDict):
 class SerializableExplorationDict(ExplorationDict):
     """Dictionary representing the serializable Exploration object."""
 
-    version: int
     created_on: str
     last_updated: str
 
@@ -5699,7 +5718,8 @@ class Exploration(translation_domain.BaseTranslatableObject):
             'next_content_id_index': self.next_content_id_index,
             'edits_allowed': self.edits_allowed,
             'states': {state_name: state.to_dict()
-                       for (state_name, state) in self.states.items()}
+                       for (state_name, state) in self.states.items()},
+            'version': self.version
         })
         exploration_dict_deepcopy = copy.deepcopy(exploration_dict)
         return exploration_dict_deepcopy
@@ -6468,10 +6488,8 @@ class ExplorationChangeMergeVerifier:
                         change_is_mergeable = True
             elif change.cmd == CMD_EDIT_EXPLORATION_PROPERTY:
                 change_is_mergeable = (
-                    exp_at_change_list_version.__getattribute__(
-                        change.property_name) ==
-                    current_exploration.__getattribute__(
-                        change.property_name))
+                    getattr(exp_at_change_list_version, change.property_name)
+                    == getattr(current_exploration, change.property_name))
 
             if change_is_mergeable:
                 changes_are_mergeable = True

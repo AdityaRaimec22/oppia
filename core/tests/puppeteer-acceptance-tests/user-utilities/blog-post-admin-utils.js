@@ -30,7 +30,7 @@ const unauthErrorContainer = 'div.e2e-test-error-container';
 const blogDashboardAuthorDetailsModal = 'div.modal-dialog';
 const roleUpdateUsernameInput = 'input#label-target-update-form-name';
 const blogEditorUsernameInput = 'input#label-target-form-reviewer-username';
-const maximumTagLimitInput = 'input#mat-input-0';
+const maximumTagLimitInput = 'input#float-input';
 const blogAuthorBioField = 'textarea.e2e-test-blog-author-bio-field';
 const blogDashboardUrl = testConstants.URLs.BlogDashboard;
 const blogAdminUrl = testConstants.URLs.BlogAdmin;
@@ -44,7 +44,6 @@ const LABEL_FOR_DONE_BUTTON = 'DONE';
 const LABEL_FOR_SAVE_DRAFT_BUTTON = 'SAVE AS DRAFT';
 const LABEL_FOR_DELETE_BUTTON = 'Delete';
 const LABEL_FOR_CONFIRM_BUTTON = 'Confirm';
-const LABEL_FOR_ADD_ELEMENT_BUTTON = 'Add element';
 
 module.exports = class e2eBlogPostAdmin extends baseUser {
   /**
@@ -404,54 +403,6 @@ module.exports = class e2eBlogPostAdmin extends baseUser {
   }
 
   /**
-   * This function checks if the tag name exists in the blog taglist.
-   * @param {string} tagName - The name of the tag.
-   */
-  async expectTagToNotExistInBlogTags(tagName) {
-    await this.page.evaluate(async(tagName) => {
-      const tagList = document.getElementsByClassName('form-control');
-      for (let i = 0; i < tagList.length; i++) {
-        if (tagList[i].value === tagName) {
-          throw new Error(`Tag ${tagName} already exists in tag list!`);
-        }
-      }
-    }, tagName);
-    showMessage(`Tag with name ${tagName} does not exist in tag list!`);
-  }
-
-  /**
-   * This function adds a new tag in the blog taglist.
-   * @param {string} tagName - The name of the tag.
-   */
-  async addNewBlogTag(tagName) {
-    await this.clickOn(LABEL_FOR_ADD_ELEMENT_BUTTON);
-    await this.page.waitForTimeout(100);
-    await this.page.evaluate((tagName) => {
-      const tagList = document.getElementsByClassName('form-control');
-      tagList[tagList.length - 1].value = tagName;
-    }, tagName);
-    await this.clickOn(LABEL_FOR_SAVE_BUTTON);
-    showMessage(`Tag ${tagName} added in tag list successfully!`);
-  }
-
-  /**
-   * This function checks tag exists in the blog taglists.
-   * @param {string} tagName - The name of the tag.
-   */
-  async expectTagToExistInBlogTags(tagName) {
-    await this.page.evaluate(async(tagName) => {
-      const tagList = document.getElementsByClassName('form-control');
-      for (let i = 0; i < tagList.length; i++) {
-        if (tagList[i].value === tagName) {
-          return;
-        }
-      }
-      throw new Error(`Tag ${tagName} does not exist in tag list!`);
-    }, tagName);
-    showMessage(`Tag with name ${tagName} exists in tag list!`);
-  }
-
-  /**
    * This function changes the blog tags limit.
    * @param {number} limit - The limit of the blog tags.
    */
@@ -473,7 +424,7 @@ module.exports = class e2eBlogPostAdmin extends baseUser {
    */
   async expectMaximumTagLimitNotToBe(limit) {
     await this.page.evaluate(async(limit) => {
-      const tagLimit = document.getElementById('mat-input-0').value;
+      const tagLimit = document.getElementById('float-input').value;
       if (tagLimit.value === limit) {
         throw new Error(`Maximum tag limit is already ${limit}!`);
       }
@@ -487,7 +438,7 @@ module.exports = class e2eBlogPostAdmin extends baseUser {
    */
   async expectMaximumTagLimitToBe(limit) {
     await this.page.evaluate(async(limit) => {
-      const tagLimit = document.getElementById('mat-input-0').value;
+      const tagLimit = document.getElementById('float-input').value;
       if (tagLimit.value !== limit) {
         throw new Error(`Maximum tag limit is not ${limit}!`);
       }

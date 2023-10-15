@@ -21,7 +21,10 @@ var forms = require('../webdriverio_utils/forms.js');
 var general = require('../webdriverio_utils/general.js');
 var users = require('../webdriverio_utils/users.js');
 var workflow = require('../webdriverio_utils/workflow.js');
+var waitFor = require('../webdriverio_utils/waitFor.js');
 
+var ReleaseCoordinatorPage = require(
+  '../webdriverio_utils/ReleaseCoordinatorPage.js');
 var AdminPage = require('../webdriverio_utils/AdminPage.js');
 var Constants = require('../webdriverio_utils/WebdriverioConstants.js');
 var TopicsAndSkillsDashboardPage =
@@ -35,9 +38,11 @@ var ExplorationEditorPage =
 var ExplorationPlayerPage =
   require('../webdriverio_utils/ExplorationPlayerPage.js');
 var SkillEditorPage = require('../webdriverio_utils/SkillEditorPage.js');
+var DiagnosticTestPage = require('../webdriverio_utils/DiagnosticTestPage.js');
 
 describe('Checkpoints functionality', function() {
   var adminPage = null;
+  var releaseCoordinatorPage = null;
   var topicAndStoryViewerPage = null;
   var topicsAndSkillsDashboardPage = null;
   var topicEditorPage = null;
@@ -65,6 +70,8 @@ describe('Checkpoints functionality', function() {
 
   beforeAll(async function() {
     adminPage = new AdminPage.AdminPage();
+    releaseCoordinatorPage = (
+      new ReleaseCoordinatorPage.ReleaseCoordinatorPage());
     explorationPlayerPage = new ExplorationPlayerPage.ExplorationPlayerPage();
     explorationEditorPage = new ExplorationEditorPage.ExplorationEditorPage();
     explorationEditorMainTab = explorationEditorPage.getMainTab();
@@ -75,27 +82,19 @@ describe('Checkpoints functionality', function() {
     topicEditorPage = new TopicEditorPage.TopicEditorPage();
     skillEditorPage = new SkillEditorPage.SkillEditorPage();
     storyEditorPage = new StoryEditorPage.StoryEditorPage();
+    diagnosticTestPage = new DiagnosticTestPage.DiagnosticTestPage();
     await users.createAndLoginCurriculumAdminUser(
       'creator@storyViewer.com', 'creatorStoryViewer');
-
-    // The below lines of code enable the user checkpoints feature on the
-    // config tab. This is required to enable the lesson-info modal button
-    // on the exploration footer, which in turn is required to view the
-    // checkpoint message.
-    // This should be removed when the user checkpoints feature is no longer
-    // gated behind a config option.
-    await adminPage.editConfigProperty(
-      'Enable checkpoints feature.', 'Boolean',
-      async(elem) => await action.setValue(
-        'Enable checkpoints feature', elem, true, false));
 
     // The below lines enable the checkpoint_celebration flag in prod mode.
     // They should be removed after the checkpoint_celebration flag is
     // deprecated.
-    await adminPage.getFeaturesTab();
+    await adminPage.get();
+    await adminPage.addRole('creatorStoryViewer', 'release coordinator');
+    await releaseCoordinatorPage.getFeaturesTab();
     var checkpointCelebrationFlag = (
-      await adminPage.getCheckpointCelebrationFeatureElement());
-    await adminPage.enableFeatureForProd(checkpointCelebrationFlag);
+      await releaseCoordinatorPage.getCheckpointCelebrationFeatureElement());
+    await releaseCoordinatorPage.enableFeature(checkpointCelebrationFlag);
 
     await createDummyExploration();
     var handle = await browser.getWindowHandle();
@@ -120,6 +119,11 @@ describe('Checkpoints functionality', function() {
         await action.setValue(
           'Topic ID', elem, topicId, false);
       });
+
+    await browser.url('/classroom-admin/');
+    await waitFor.pageToFullyLoad();
+    await diagnosticTestPage.createNewClassroomConfig('Math', 'math');
+    await diagnosticTestPage.addTopicIdToClassroomConfig(topicId, 0);
 
     await topicsAndSkillsDashboardPage.get();
     await topicsAndSkillsDashboardPage.createSkillWithDescriptionAndExplanation(
@@ -149,9 +153,7 @@ describe('Checkpoints functionality', function() {
     await topicEditorPage.saveSubtopicExplanation();
     await topicEditorPage.saveTopic('Added subtopic.');
     await topicEditorPage.navigateToTopicEditorTab();
-    await topicEditorPage.navigateToReassignModal();
-    await topicEditorPage.dragSkillToSubtopic('Checkpoint features skill', 0);
-    await topicEditorPage.saveRearrangedSkills();
+    await topicEditorPage.replacementDragSkillToSubtopic(0);
     await topicEditorPage.saveTopic('Added skill to subtopic.');
     await topicEditorPage.publishTopic();
     await topicsAndSkillsDashboardPage.editTopic('Checkpoint features topic');
@@ -176,6 +178,8 @@ describe('Checkpoints functionality', function() {
     async function() {
       await topicAndStoryViewerPage.get(
         'math', 'topic-cf-one', 'checkpointfeaturesstory');
+      await topicAndStoryViewerPage.expectCompletedLessonCountToBe(0);
+
       await topicAndStoryViewerPage.goToChapterIndex(0);
       await explorationPlayerPage.submitAnswer('Continue', null);
       await explorationPlayerPage.dismissLessonInfoTooltip();

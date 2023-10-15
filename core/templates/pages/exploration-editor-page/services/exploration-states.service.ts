@@ -44,7 +44,7 @@ import { WrittenTranslations } from 'domain/exploration/WrittenTranslationsObjec
 import { AnswerGroup } from 'domain/exploration/AnswerGroupObjectFactory';
 import { RecordedVoiceovers } from 'domain/exploration/recorded-voiceovers.model';
 import { Outcome } from 'domain/exploration/OutcomeObjectFactory';
-import { Hint } from 'domain/exploration/HintObjectFactory';
+import { Hint } from 'domain/exploration/hint-object.model';
 import { Solution } from 'domain/exploration/SolutionObjectFactory';
 import { InteractionCustomizationArgs } from 'interactions/customization-args-defs';
 import { ParamSpecs } from 'domain/exploration/ParamSpecsObjectFactory';
@@ -282,7 +282,8 @@ export class ExplorationStatesService {
     }
   }
 
-  private _getElementsInFirstSetButNotInSecond(setA, setB): string[] {
+  private _getElementsInFirstSetButNotInSecond(
+      setA: Set<string>, setB: Set<string>): string[] {
     let diffList = Array.from(setA).filter((element) => {
       return !setB.has(element);
     });

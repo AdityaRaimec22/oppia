@@ -256,15 +256,19 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
       this.contextService.setImageSaveDestinationToLocalStorage();
     }
 
-    this.windowRef.nativeWindow.location.hash = this.questionId;
+    this.windowRef.nativeWindow.location.hash = '/questions#' + this.questionId;
   }
 
-  removeQuestionSkillLinkAsync(questionId: string, skillId: string): void {
+  removeQuestionSkillLinkAsync(
+      questionId: string,
+      skillId: string,
+      skillDifficulty: number): void {
     this.editableQuestionBackendApiService.editQuestionSkillLinksAsync(
       questionId, [
         {
           id: skillId,
-          task: 'remove'
+          task: 'remove',
+          difficulty: skillDifficulty
         } as SkillLinkageModificationsArray
       ]
     ).then(() => {
@@ -276,7 +280,7 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
     });
   }
 
-  removeQuestionFromSkill(questionId: string): void {
+  removeQuestionFromSkill(questionId: string, skillDifficulty: number): void {
     let modalRef: NgbModalRef = this.ngbModal.
       open(RemoveQuestionSkillLinkModalComponent, {
         backdrop: 'static'
@@ -289,7 +293,10 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
 
     modalRef.result.then(() => {
       this.deletedQuestionIds.push(questionId);
-      this.removeQuestionSkillLinkAsync(questionId, this.selectedSkillId);
+      this.removeQuestionSkillLinkAsync(
+        questionId,
+        this.selectedSkillId,
+        skillDifficulty);
     }, () => {
       // Note to developers:
       // This callback is triggered when the Cancel button is clicked.
@@ -445,7 +452,9 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
   }
 
   saveAndPublishQuestion(commitMessage: string | null): void {
-    let validationErrors = this.question.getValidationErrorMessage();
+    let validationErrors = (
+      this.questionValidationService.getValidationErrorMessage(
+        this.question));
     let unaddressedMisconceptions = (
       this.question.getUnaddressedMisconceptionNames(
         this.misconceptionsBySkill));
@@ -476,8 +485,8 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
         this.questionsListService.getQuestionSummariesAsync(
           this.selectedSkillId, true, true
         );
-        this.questionIsBeingSaved = false;
         this.editorIsOpen = false;
+        this.questionIsBeingSaved = false;
         this.alertsService.addSuccessMessage(
           'Question created successfully.');
         this._initTab(true);
@@ -485,7 +494,6 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
     } else {
       if (this.questionUndoRedoService.hasChanges()) {
         if (commitMessage) {
-          this.questionIsBeingSaved = true;
           this.editableQuestionBackendApiService.updateQuestionAsync(
             this.questionId, String(this.question.getVersion()), commitMessage,
             this.questionUndoRedoService
@@ -500,14 +508,14 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
             }, (error) => {
               this.alertsService.addWarning(
                 error || 'There was an error saving the question.');
-              this.questionIsBeingSaved = false;
               this.editorIsOpen = false;
+              this.questionIsBeingSaved = false;
             });
         } else {
           this.alertsService.addWarning(
             'Please provide a valid commit message.');
-          this.questionIsBeingSaved = false;
           this.editorIsOpen = false;
+          this.questionIsBeingSaved = false;
         }
       }
     }
@@ -563,6 +571,7 @@ export class QuestionsListComponent implements OnInit, OnDestroy {
   }
 
   saveQuestion(): void {
+    this.questionIsBeingSaved = true;
     this.contextService.resetImageSaveDestination();
     this.windowRef.nativeWindow.location.hash = null;
     if (this.questionIsBeingUpdated) {
